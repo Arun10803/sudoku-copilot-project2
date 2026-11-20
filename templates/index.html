@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sudoku — Python &amp; Flask</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="top-bar">
+      <div>
+        <h1>Sudoku</h1>
+        <p class="subtitle">Python + Flask • Unique-Solution Generator &amp; Top 10 Leaderboard</p>
+      </div>
+      <div class="controls">
+        <label for="difficulty-select" class="sr-only">Difficulty</label>
+        <select id="difficulty-select">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+        <button id="new-game-btn" type="button">New Game</button>
+        <button id="check-btn" type="button">Check Board</button>
+        <button id="solve-btn" type="button" class="secondary">Reveal Solution</button>
+        <button id="theme-btn" type="button" class="secondary">Dark Mode</button>
+      </div>
+    </header>
+
+    <section class="status-row" aria-live="polite">
+      <span id="timer-label">Time: 00:00</span>
+      <span id="status-label">Enter digits 1–9 in empty cells.</span>
+    </section>
+
+    <div class="workspace">
+      <section aria-label="Sudoku Board">
+        <div id="sudoku-grid" class="sudoku-grid" role="grid"></div>
+      </section>
+
+      <aside class="leaderboard-card" aria-label="Top 10 Leaderboard">
+        <h2>Top 10 Scores</h2>
+        <ol id="leaderboard-list">
+          {% for item in scores %}
+          <li>
+            <strong>{{ item.player }}</strong> — {{ item.score }} pts ({{ item.difficulty }}, {{ item.seconds }}s)
+          </li>
+          {% else %}
+          <li>No scores recorded yet. Complete a puzzle to claim a spot!</li>
+          {% endfor %}
+        </ol>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    let initialPuzzle = [];
+    let secondsElapsed = 0;
+    let timerId = null;
+
+    const gridEl = document.getElementById("sudoku-grid");
+    const statusEl = document.getElementById("status-label");
+    const timerEl = document.getElementById("timer-label");
+    const difficultyEl = document.getElementById("difficulty-select");
+    const leaderboardEl = document.getElementById("leaderboard-list");
+
+    function formatTime(totalSec) {
+      const m = String(Math.floor(totalSec / 60)).padStart(2, "0");
+      const s = String(totalSec % 60).padStart(2, "0");
+      return `Time: ${m}:${s}`;
+    }
+
+    function startTimer() {
+      clearInterval(timerId);
+      secondsElapsed = 0;
+      timerEl.textContent = formatTime(secondsElapsed);
+      timerId = setInterval(() => {
+        secondsElapsed += 1;
+        timerEl.textContent = formatTime(secondsElapsed);
+      }, 1000);
+    }
+
+    function renderLeaderboard(scores) {
+      leaderboardEl.innerHTML = "";
+      if (!scores || scores.length === 0) {
+        leaderboardEl.innerHTML = "<li>No scores recorded yet.</li>";
+        return;
+      }
+      scores.forEach((item) => {
+        const li = document.createElement("li");
+        li.innerHTML = `<strong>${item.player}</strong> — ${item.score} pts (${item.difficulty}, ${item.seconds}s)`;
+        leaderboardEl.appendChild(li);
+      });
+    }
+
+    function renderGrid(board) {
+      gridEl.innerHTML = "";
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          const boxIndex = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+          const isAltBox = boxIndex % 2 === 1;
+          const isFixed = initialPuzzle[r][c] !== 0;
+
+          const input = document.createElement("input");
+          input.type = "text";
+          input.inputMode = "numeric";
+          input.maxLength = 1;
+          input.dataset.row = r;
+          input.dataset.col = c;
+          input.className = [
+            "cell",
+            isAltBox ? "box-alt" : "box-base",
+            isFixed ? "cell-fixed" : "cell-editable",
+            c % 3 === 2 && c !== 8 ? "border-right-thick" : "",
+            r % 3 === 2 && r !== 8 ? "border-bottom-thick" : "",
+          ].filter(Boolean).join(" ");
+
+          if (isFixed) {
+            input.value = String(initialPuzzle[r][c]);
+            input.readOnly = true;
+          } else if (board && board[r][c] !== 0) {
+            input.value = String(board[r][c]);
+          }
+
+          input.addEventListener("input", () => {
+            input.value = input.value.replace(/[^1-9]/g, "");
+          });
+
+          gridEl.appendChild(input);
+        }
+      }
+    }
+
+    function readBoard() {
+      const board = Array.from({ length: 9 }, () => Array(9).fill(0));
+      gridEl.querySelectorAll(".cell").forEach((el) => {
+        const r = Number(el.dataset.row);
+        const c = Number(el.dataset.col);
+        const val = Number(el.value);
+        board[r][c] = val >= 1 && val <= 9 ? val : 0;
+      });
+      return board;
+    }
+
+    async function loadNewGame() {
+      const difficulty = difficultyEl.value;
+      const res = await fetch("/api/new-game", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ difficulty }),
+      });
+      const data = await res.json();
+      initialPuzzle = data.puzzle;
+      renderGrid(initialPuzzle);
+      startTimer();
+      statusEl.textContent = `New ${difficulty} puzzle loaded (${data.clues} clues).`;
+    }
+
+    async function checkBoard() {
+      const board = readBoard();
+      const res = await fetch("/api/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ board }),
+      });
+      const data = await res.json();
+
+      gridEl.querySelectorAll(".cell").forEach((el) => {
+        const r = Number(el.dataset.row);
+        const c = Number(el.dataset.col);
+        el.classList.toggle("cell-conflict", data.conflicts[r][c] === 1);
+      });
+
+      if (data.solved) {
+        clearInterval(timerId);
+        const playerName = prompt("Puzzle solved! Enter your name for the Top 10 leaderboard:", "Arun") || "Player";
+        const scoreRes = await fetch("/api/scores", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            player: playerName,
+            difficulty: difficultyEl.value,
+            seconds: secondsElapsed,
+            mistakes: 0,
+          }),
+        });
+        const scoreData = await scoreRes.json();
+        renderLeaderboard(scoreData.scores);
+        statusEl.textContent = `Solved in ${secondsElapsed}s! Score: ${scoreData.entry.score} pts.`;
+      } else if (data.has_conflicts) {
+        statusEl.textContent = "Conflicts highlighted in red—check rows, columns, and 3x3 blocks.";
+      } else {
+        statusEl.textContent = "No conflicts found so far.";
+      }
+    }
+
+    async function revealSolution() {
+      const res = await fetch("/api/solve");
+      const data = await res.json();
+      if (data.solution) {
+        renderGrid(data.solution);
+        clearInterval(timerId);
+        statusEl.textContent = "Solution revealed.";
+      }
+    }
+
+    document.getElementById("new-game-btn").addEventListener("click", loadNewGame);
+    document.getElementById("check-btn").addEventListener("click", checkBoard);
+    document.getElementById("solve-btn").addEventListener("click", revealSolution);
+    document.getElementById("theme-btn").addEventListener("click", (e) => {
+      const html = document.documentElement;
+      const next = html.dataset.theme === "dark" ? "light" : "dark";
+      html.dataset.theme = next;
+      e.target.textContent = next === "dark" ? "Light Mode" : "Dark Mode";
+    });
+
+    loadNewGame();
+  </script>
+</body>
+</html>
