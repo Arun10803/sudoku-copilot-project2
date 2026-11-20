@@ -1,0 +1,22 @@
+[
+    {
+      "id": "testing_setup",
+      "screenshot": "Screenshots/copilot_testing_setup.png",
+      "prompt": "Explain how pytest tests in tests/test_sudoku.py verify Sudoku clue counts, unique solutions, conflict detection, and Top 10 leaderboard sorting in this Flask app."
+    },
+    {
+      "id": "unique_solution",
+      "screenshot": "Screenshots/copilot_unique_solution.png",
+      "prompt": "Review count_solutions and generate_puzzle in sudoku_engine.py and explain how MRV backtracking guarantees strictly one unique solution."
+    },
+    {
+      "id": "top10_storage",
+      "screenshot": "Screenshots/copilot_top10_storage.png",
+      "prompt": "Explain how storage.py ranks scores, checks Top 10 qualification, and persists sorted entries to JSON."
+    },
+    {
+      "id": "grid_styling",
+      "screenshot": "Screenshots/copilot_grid_styling.png",
+      "prompt": "Explain how templates/index.html and static/styles.css alternate 3x3 subgrid backgrounds while supporting light and dark themes."
+    }
+  ]

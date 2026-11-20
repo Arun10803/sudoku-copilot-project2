@@ -1,0 +1,1 @@
+Use Python 3 and Flask for backend routes and templating. Keep Sudoku generation, MRV uniqueness validation, and conflict detection in `sudoku_engine.py`, leaderboard persistence in `storage.py`, and unit tests in `tests/test_sudoku.py`. Maintain high-contrast CSS variables in `static/styles.css` for both light and dark modes.
